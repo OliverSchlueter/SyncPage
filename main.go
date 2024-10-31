@@ -1,9 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"syncpage/github"
 	"syncpage/site"
+)
+
+const (
+	PORT = "8080"
 )
 
 func main() {
@@ -28,11 +33,13 @@ func main() {
 	fhSite.Register(mux)
 
 	go func() {
-		err := http.ListenAndServe(":8080", mux)
+		err := http.ListenAndServe(":"+PORT, mux)
 		if err != nil {
 			return
 		}
 	}()
+
+	fmt.Printf("Listening on port %s\n", PORT)
 
 	c := make(chan bool)
 	<-c

@@ -14,11 +14,12 @@ import (
 )
 
 const (
-	UpdateInterval = time.Second * 30
+	UpdateInterval = 5 * time.Minute
 )
 
 var (
-	NoAssetError = errors.New("no asset found for release")
+	AdminAuthToken = os.Getenv("ADMIN_AUTH_TOKEN")
+	NoAssetError   = errors.New("no asset found for release")
 )
 
 type Site struct {
@@ -28,6 +29,8 @@ type Site struct {
 
 func (s *Site) Register(mux *http.ServeMux) {
 	go s.startUpdateLoop()
+
+	mux.HandleFunc("/api/v1/update/"+s.Name, s.HandleForceUpdate)
 
 	mux.HandleFunc("/"+s.Name+"/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path[len(s.Name)+1:]
@@ -66,6 +69,21 @@ func (s *Site) TryToReturnIndex(w http.ResponseWriter, r *http.Request) {
 	w.Write(content)
 }
 
+func (s *Site) HandleForceUpdate(w http.ResponseWriter, r *http.Request) {
+	if r.Header.Get("Authorization") != mustGetAdminAuthToken() {
+		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
+		return
+	}
+
+	err := s.updateFiles()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func (s *Site) startUpdateLoop() {
 	ticker := time.NewTicker(UpdateInterval)
 	defer ticker.Stop()
@@ -75,8 +93,6 @@ func (s *Site) startUpdateLoop() {
 		if err != nil {
 			fmt.Printf("Error updating site %s: %v\n", s.Name, err)
 		}
-
-		fmt.Printf("Updated site %s\n", s.Name)
 	}
 }
 
@@ -101,6 +117,7 @@ func (s *Site) updateFiles() error {
 		return err
 	}
 
+	fmt.Printf("Updated site %s\n", s.Name)
 	return nil
 }
 
@@ -161,4 +178,17 @@ func unpackZip(zipContent []byte, destinationDir string) error {
 	}
 
 	return nil
+}
+
+func mustGetAdminAuthToken() string {
+	if AdminAuthToken != "" {
+		return AdminAuthToken
+	}
+
+	AdminAuthToken = os.Getenv("ADMIN_AUTH_TOKEN")
+	if AdminAuthToken == "" {
+		AdminAuthToken = "admin"
+	}
+
+	return AdminAuthToken
 }
