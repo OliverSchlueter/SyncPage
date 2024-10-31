@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net/http"
 	"syncpage/github"
+	"syncpage/middleware"
 	"syncpage/site"
 )
 
@@ -33,7 +34,7 @@ func main() {
 	fhSite.Register(mux)
 
 	go func() {
-		err := http.ListenAndServe(":"+PORT, mux)
+		err := http.ListenAndServe(":"+PORT, middleware.Middleware(mux))
 		if err != nil {
 			return
 		}
