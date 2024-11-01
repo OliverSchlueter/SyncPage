@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"syncpage/github"
+	"syncpage/logger"
 	"syncpage/middleware"
 	"syncpage/site"
 )
@@ -18,6 +19,9 @@ const (
 
 func main() {
 	fmt.Printf("Starting SyncPage\n\n")
+
+	logger.Init()
+
 	mux := http.NewServeMux()
 
 	sites, err := loadSites()

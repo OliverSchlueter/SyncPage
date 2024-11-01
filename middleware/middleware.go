@@ -1,8 +1,8 @@
 package middleware
 
 import (
-	"fmt"
 	"net/http"
+	"syncpage/logger"
 	"time"
 )
 
@@ -18,6 +18,14 @@ func Middleware(next http.Handler) http.HandlerFunc {
 		next.ServeHTTP(sr, r)
 
 		elapsedTime := time.Since(startTime)
-		fmt.Printf("[Req] %d %s: %s %s in %s\n", sr.Status, http.StatusText(sr.Status), r.Method, r.URL, elapsedTime)
+
+		logger.InfoProps("Request received", map[string]interface{}{
+			"method":       r.Method,
+			"url":          r.URL.String(),
+			"status":       sr.Status,
+			"elapsed_time": elapsedTime.Milliseconds(),
+			"user_agent":   r.UserAgent(),
+			"referer":      r.Referer(),
+		})
 	}
 }
