@@ -17,6 +17,7 @@ const (
 )
 
 func main() {
+	fmt.Printf("Starting SyncPage\n\n")
 	mux := http.NewServeMux()
 
 	sites, err := loadSites()
@@ -27,6 +28,8 @@ func main() {
 	for _, s := range sites {
 		s.Register(mux)
 	}
+
+	fmt.Println("Sites registered")
 
 	go func() {
 		err := http.ListenAndServe(":"+Port, middleware.Middleware(mux))

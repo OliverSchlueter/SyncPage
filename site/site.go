@@ -17,7 +17,7 @@ import (
 
 const (
 	SitesDir       = "data/sites"
-	UpdateInterval = 5 * time.Minute
+	UpdateInterval = 1 * time.Hour
 )
 
 var (
@@ -32,6 +32,7 @@ type Site struct {
 	WorkflowName string            `json:"workflow_name"`
 	ArtifactName string            `json:"artifact_name"`
 	FileName     string            `json:"file_name"`
+	currentRunID int
 }
 
 func (s *Site) Register(mux *http.ServeMux) {
@@ -126,6 +127,11 @@ func (s *Site) updateFiles() error {
 		return fmt.Errorf("error while getting latest workflow run: %w", err)
 	}
 
+	if s.currentRunID == run.ID {
+		fmt.Printf("Site %s is up to date\n", s.Name)
+		return nil
+	}
+
 	artifacts, err := s.Repo.GetArtifacts(run)
 	if err != nil {
 		return fmt.Errorf("error while getting artifacts: %w", err)
@@ -156,6 +162,8 @@ func (s *Site) updateFiles() error {
 	if err != nil {
 		return fmt.Errorf("error while unpacking inner artifact: %w", err)
 	}
+
+	s.currentRunID = run.ID
 
 	fmt.Printf("Updated site %s\n", s.Name)
 	return nil

@@ -1,0 +1,11 @@
+services:
+  syncpage:
+    image: oliverschlueter/sync-page:latest
+    container_name: syncpage
+    ports:
+      - "8181:8080"
+    volumes:
+      - ./data:/app/data  # Mount the host 'data' directory to '/app/data' in the container
+    environment:
+      - ADMIN_AUTH_TOKEN=asginaosgnkasgkngsaklnglkasg
+    restart: always
