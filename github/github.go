@@ -8,9 +8,9 @@ import (
 )
 
 type Repository struct {
-	Owner     string
-	Repo      string
-	AuthToken string
+	Owner     string `json:"owner"`
+	Repo      string `json:"repo"`
+	AuthToken string `json:"auth_token"`
 }
 
 type WorkflowRun struct {

@@ -15,6 +15,7 @@ import (
 )
 
 const (
+	SitesDir       = "data/sites"
 	UpdateInterval = 5 * time.Minute
 )
 
@@ -25,11 +26,11 @@ var (
 )
 
 type Site struct {
-	Name         string
-	Repo         github.Repository
-	WorkflowName string
-	ArtifactName string
-	FileName     *regexp.Regexp
+	Name         string            `json:"name"`
+	Repo         github.Repository `json:"repo"`
+	WorkflowName string            `json:"workflow_name"`
+	ArtifactName string            `json:"artifact_name"`
+	FileName     string            `json:"file_name"`
 }
 
 func (s *Site) Register(mux *http.ServeMux) {
@@ -40,13 +41,17 @@ func (s *Site) Register(mux *http.ServeMux) {
 
 	mux.HandleFunc("/api/v1/update/"+s.Name, s.HandleForceUpdate)
 
-	mux.HandleFunc("/"+s.Name+"/", func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path[len(s.Name)+1:]
-		if path == "" || path == "/" {
+	pattern := "/" + s.Name + "/"
+	if s.Name == "home" {
+		pattern = "/"
+	}
+	mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
+		path := r.URL.Path[len(pattern):]
+		if path == "" {
 			path = "index.html"
 		}
 
-		content, err := os.ReadFile("sites/" + s.Name + "/" + path)
+		content, err := os.ReadFile(SitesDir + "/" + s.Name + "/" + path)
 		if err != nil {
 			if os.IsNotExist(err) {
 				s.TryToReturnIndex(w, r)
@@ -64,7 +69,7 @@ func (s *Site) Register(mux *http.ServeMux) {
 }
 
 func (s *Site) TryToReturnIndex(w http.ResponseWriter, r *http.Request) {
-	path := "sites/" + s.Name + "/index.html"
+	path := SitesDir + "/" + s.Name + "/index.html"
 
 	content, err := os.ReadFile(path)
 	if err != nil {
@@ -133,12 +138,12 @@ func (s *Site) updateFiles() error {
 		return fmt.Errorf("error while downloading artifact: %w", err)
 	}
 
-	artifactContent, err := readFileFromZip(artifactRawContent, s.FileName)
+	artifactContent, err := readFileFromZip(artifactRawContent, regexp.MustCompile(s.FileName))
 	if err != nil {
 		return fmt.Errorf("error while unpacking outer artifact: %w", err)
 	}
 
-	err = unpackZip(artifactContent, "sites/"+s.Name)
+	err = unpackZip(artifactContent, SitesDir+"/"+s.Name)
 	if err != nil {
 		return fmt.Errorf("error while unpacking inner artifact: %w", err)
 	}
