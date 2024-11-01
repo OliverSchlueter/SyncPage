@@ -37,9 +37,11 @@ type Site struct {
 
 func (s *Site) Register(mux *http.ServeMux) {
 	go s.startUpdateLoop()
-	if err := s.updateFiles(); err != nil {
-		fmt.Printf("error while updating site %s: %v\n", s.Name, err)
-	}
+	go func() {
+		if err := s.updateFiles(); err != nil {
+			fmt.Printf("error while updating site %s: %v\n", s.Name, err)
+		}
+	}()
 
 	mux.HandleFunc("/api/v1/update/"+s.Name, s.HandleForceUpdate)
 
