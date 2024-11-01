@@ -31,6 +31,10 @@ func main() {
 
 	fmt.Println("Sites registered")
 
+	mux.HandleFunc("/api/v1/update", func(w http.ResponseWriter, r *http.Request) {
+		handleForceUpdateSites(w, r, sites)
+	})
+
 	go func() {
 		err := http.ListenAndServe(":"+Port, middleware.Middleware(mux))
 		if err != nil {
@@ -42,6 +46,18 @@ func main() {
 
 	c := make(chan bool)
 	<-c
+}
+
+func handleForceUpdateSites(w http.ResponseWriter, r *http.Request, sites []site.Site) {
+	for _, s := range sites {
+		err := s.UpdateFiles()
+		if err != nil {
+			fmt.Printf("Failed to update site %s: %s\n", s.Name, err)
+			continue
+		}
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }
 
 func loadSites() ([]site.Site, error) {

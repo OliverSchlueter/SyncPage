@@ -32,18 +32,15 @@ type Site struct {
 	WorkflowName string            `json:"workflow_name"`
 	ArtifactName string            `json:"artifact_name"`
 	FileName     string            `json:"file_name"`
-	currentRunID int
 }
 
 func (s *Site) Register(mux *http.ServeMux) {
 	go s.startUpdateLoop()
 	go func() {
-		if err := s.updateFiles(); err != nil {
+		if err := s.UpdateFiles(); err != nil {
 			fmt.Printf("error while updating site %s: %v\n", s.Name, err)
 		}
 	}()
-
-	mux.HandleFunc("/api/v1/update/"+s.Name, s.HandleForceUpdate)
 
 	pattern := "/" + s.Name + "/"
 	if s.Name == "home" {
@@ -96,42 +93,22 @@ func (s *Site) TryToReturnIndex(w http.ResponseWriter, r *http.Request) {
 	w.Write(content)
 }
 
-func (s *Site) HandleForceUpdate(w http.ResponseWriter, r *http.Request) {
-	if r.Header.Get("Authorization") != mustGetAdminAuthToken() {
-		http.Error(w, http.StatusText(http.StatusUnauthorized), http.StatusUnauthorized)
-		return
-	}
-
-	err := s.updateFiles()
-	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-
-	w.WriteHeader(http.StatusNoContent)
-}
-
 func (s *Site) startUpdateLoop() {
 	ticker := time.NewTicker(UpdateInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		err := s.updateFiles()
+		err := s.UpdateFiles()
 		if err != nil {
 			fmt.Printf("error while updating site %s: %v\n", s.Name, err)
 		}
 	}
 }
 
-func (s *Site) updateFiles() error {
+func (s *Site) UpdateFiles() error {
 	run, err := s.Repo.GetLatestWorkflowRun(s.WorkflowName)
 	if err != nil {
 		return fmt.Errorf("error while getting latest workflow run: %w", err)
-	}
-
-	if s.currentRunID == run.ID {
-		fmt.Printf("Site %s is up to date\n", s.Name)
-		return nil
 	}
 
 	artifacts, err := s.Repo.GetArtifacts(run)
@@ -164,8 +141,6 @@ func (s *Site) updateFiles() error {
 	if err != nil {
 		return fmt.Errorf("error while unpacking inner artifact: %w", err)
 	}
-
-	s.currentRunID = run.ID
 
 	fmt.Printf("Updated site %s\n", s.Name)
 	return nil
