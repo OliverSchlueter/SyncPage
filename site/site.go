@@ -34,7 +34,7 @@ type Site struct {
 	FileName     string            `json:"file_name"`
 }
 
-func (s *Site) Register(mux *http.ServeMux) {
+func (s Site) Register(mux *http.ServeMux) {
 	go s.startUpdateLoop()
 	go func() {
 		if err := s.UpdateFiles(); err != nil {
@@ -48,9 +48,16 @@ func (s *Site) Register(mux *http.ServeMux) {
 	}
 	mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path
+		if path == "/" {
+			s.TryToReturnIndex(w, r)
+			return
+		}
+
 		if strings.HasSuffix(path, "/") {
 			path += "index.html"
 		}
+
+		path = strings.TrimPrefix(path, pattern)
 
 		content, err := os.ReadFile(SitesDir + "/" + s.Name + "/" + path)
 		if err != nil {
@@ -77,7 +84,7 @@ func (s *Site) Register(mux *http.ServeMux) {
 	fmt.Printf("Registered site %s\n", s.Name)
 }
 
-func (s *Site) TryToReturnIndex(w http.ResponseWriter, r *http.Request) {
+func (s Site) TryToReturnIndex(w http.ResponseWriter, r *http.Request) {
 	path := SitesDir + "/" + s.Name + "/index.html"
 
 	content, err := os.ReadFile(path)
@@ -93,7 +100,7 @@ func (s *Site) TryToReturnIndex(w http.ResponseWriter, r *http.Request) {
 	w.Write(content)
 }
 
-func (s *Site) startUpdateLoop() {
+func (s Site) startUpdateLoop() {
 	ticker := time.NewTicker(UpdateInterval)
 	defer ticker.Stop()
 
@@ -105,11 +112,12 @@ func (s *Site) startUpdateLoop() {
 	}
 }
 
-func (s *Site) UpdateFiles() error {
+func (s Site) UpdateFiles() error {
 	run, err := s.Repo.GetLatestWorkflowRun(s.WorkflowName)
 	if err != nil {
 		return fmt.Errorf("error while getting latest workflow run: %w", err)
 	}
+	fmt.Printf("Latest workflow run for %s: %s\n", s.Name, run.DisplayTitle)
 
 	artifacts, err := s.Repo.GetArtifacts(run)
 	if err != nil {

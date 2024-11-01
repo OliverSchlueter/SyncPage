@@ -14,11 +14,12 @@ type Repository struct {
 }
 
 type WorkflowRun struct {
-	ID         int    `json:"id"`
-	Name       string `json:"name"`
-	Status     string `json:"status"`
-	Conclusion string `json:"conclusion"`
-	HTMLURL    string `json:"html_url"`
+	ID           int    `json:"id"`
+	Name         string `json:"name"`
+	Status       string `json:"status"`
+	Conclusion   string `json:"conclusion"`
+	HTMLURL      string `json:"html_url"`
+	DisplayTitle string `json:"display_title"`
 }
 
 type Artifact struct {
