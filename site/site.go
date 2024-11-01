@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strings"
 	"syncpage/github"
 	"time"
 )
@@ -46,9 +47,9 @@ func (s *Site) Register(mux *http.ServeMux) {
 		pattern = "/"
 	}
 	mux.HandleFunc(pattern, func(w http.ResponseWriter, r *http.Request) {
-		path := r.URL.Path[len(pattern):]
-		if path == "" {
-			path = "index.html"
+		path := r.URL.Path
+		if strings.HasSuffix(path, "/") {
+			path += "index.html"
 		}
 
 		content, err := os.ReadFile(SitesDir + "/" + s.Name + "/" + path)
@@ -60,6 +61,14 @@ func (s *Site) Register(mux *http.ServeMux) {
 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
+		}
+
+		if strings.HasSuffix(path, ".html") {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		} else if strings.HasSuffix(path, ".css") {
+			w.Header().Set("Content-Type", "text/css; charset=utf-8")
+		} else if strings.HasSuffix(path, ".js") {
+			w.Header().Set("Content-Type", "application/javascript; charset=utf-8")
 		}
 
 		w.Write(content)
