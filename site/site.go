@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"syncpage/github"
 	"time"
 )
@@ -19,22 +20,29 @@ const (
 
 var (
 	AdminAuthToken = os.Getenv("ADMIN_AUTH_TOKEN")
-	NoAssetError   = errors.New("no asset found for release")
+
+	ErrNoArtifacts = errors.New("no artifacts found in workflow run")
 )
 
 type Site struct {
-	Name string
-	Repo github.Repository
+	Name         string
+	Repo         github.Repository
+	WorkflowName string
+	ArtifactName string
+	FileName     *regexp.Regexp
 }
 
 func (s *Site) Register(mux *http.ServeMux) {
 	go s.startUpdateLoop()
+	if err := s.updateFiles(); err != nil {
+		fmt.Printf("error while updating site %s: %v\n", s.Name, err)
+	}
 
 	mux.HandleFunc("/api/v1/update/"+s.Name, s.HandleForceUpdate)
 
 	mux.HandleFunc("/"+s.Name+"/", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path[len(s.Name)+1:]
-		if path == "" {
+		if path == "" || path == "/" {
 			path = "index.html"
 		}
 
@@ -51,6 +59,8 @@ func (s *Site) Register(mux *http.ServeMux) {
 
 		w.Write(content)
 	})
+
+	fmt.Printf("Registered site %s\n", s.Name)
 }
 
 func (s *Site) TryToReturnIndex(w http.ResponseWriter, r *http.Request) {
@@ -91,34 +101,80 @@ func (s *Site) startUpdateLoop() {
 	for range ticker.C {
 		err := s.updateFiles()
 		if err != nil {
-			fmt.Printf("Error updating site %s: %v\n", s.Name, err)
+			fmt.Printf("error while updating site %s: %v\n", s.Name, err)
 		}
 	}
 }
 
 func (s *Site) updateFiles() error {
-	release, err := s.Repo.GetLatestRelease()
+	run, err := s.Repo.GetLatestWorkflowRun(s.WorkflowName)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while getting latest workflow run: %w", err)
 	}
 
-	if release.Assets == nil {
-		return NoAssetError
-	}
-	asset := release.Assets[0]
-
-	content, err := asset.Download()
+	artifacts, err := s.Repo.GetArtifacts(run)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while getting artifacts: %w", err)
 	}
 
-	err = unpackZip(content, fmt.Sprintf("%s/%s", "sites", s.Name))
+	if len(artifacts) == 0 {
+		return ErrNoArtifacts
+	}
+	var artifact github.Artifact
+	for _, a := range artifacts {
+		if a.Name == s.ArtifactName {
+			artifact = a
+			break
+		}
+	}
+
+	artifactRawContent, err := artifact.Download(&s.Repo)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while downloading artifact: %w", err)
+	}
+
+	artifactContent, err := readFileFromZip(artifactRawContent, s.FileName)
+	if err != nil {
+		return fmt.Errorf("error while unpacking outer artifact: %w", err)
+	}
+
+	err = unpackZip(artifactContent, "sites/"+s.Name)
+	if err != nil {
+		return fmt.Errorf("error while unpacking inner artifact: %w", err)
 	}
 
 	fmt.Printf("Updated site %s\n", s.Name)
 	return nil
+}
+
+func readFileFromZip(zipContent []byte, filename *regexp.Regexp) ([]byte, error) {
+	reader, err := zip.NewReader(bytes.NewReader(zipContent), int64(len(zipContent)))
+	if err != nil {
+		return nil, err
+	}
+
+	var file *zip.File
+	for _, f := range reader.File {
+		if filename.MatchString(f.Name) {
+			file = f
+		}
+	}
+	if file == nil {
+		return nil, fmt.Errorf("file %s not found in zip", filename)
+	}
+
+	fileReader, err := file.Open()
+	if err != nil {
+		return nil, err
+	}
+	defer fileReader.Close()
+
+	content, err := io.ReadAll(fileReader)
+	if err != nil {
+		return nil, err
+	}
+
+	return content, nil
 }
 
 func unpackZip(zipContent []byte, destinationDir string) error {

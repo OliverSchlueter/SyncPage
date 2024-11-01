@@ -13,26 +13,36 @@ type Repository struct {
 	AuthToken string
 }
 
-type Release struct {
-	ID     int     `json:"id"`
-	Name   string  `json:"name"`
-	Assets []Asset `json:"assets"`
+type WorkflowRun struct {
+	ID         int    `json:"id"`
+	Name       string `json:"name"`
+	Status     string `json:"status"`
+	Conclusion string `json:"conclusion"`
+	HTMLURL    string `json:"html_url"`
 }
 
-type Asset struct {
-	Name               string `json:"name"`
-	BrowserDownloadURL string `json:"browser_download_url"`
+type Artifact struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
 }
 
-func (r *Repository) GetLatestRelease() (*Release, error) {
-	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/releases/latest", r.Owner, r.Repo)
+type WorkflowRunsResponse struct {
+	WorkflowRuns []WorkflowRun `json:"workflow_runs"`
+}
+
+type ArtifactsResponse struct {
+	Artifacts []Artifact `json:"artifacts"`
+}
+
+func (r *Repository) GetLatestWorkflowRun(workflowName string) (*WorkflowRun, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/runs", r.Owner, r.Repo)
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return nil, err
 	}
 
 	if r.AuthToken != "" {
-		req.Header.Set("Authorization", "token "+r.AuthToken)
+		req.Header.Set("Authorization", "Bearer "+r.AuthToken)
 	}
 
 	client := &http.Client{}
@@ -42,16 +52,59 @@ func (r *Repository) GetLatestRelease() (*Release, error) {
 	}
 	defer resp.Body.Close()
 
-	var release Release
-	if err := json.NewDecoder(resp.Body).Decode(&release); err != nil {
+	var runsResponse WorkflowRunsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&runsResponse); err != nil {
 		return nil, err
 	}
 
-	return &release, nil
+	for _, run := range runsResponse.WorkflowRuns {
+		if run.Name == workflowName {
+			return &run, nil
+		}
+	}
+
+	return nil, fmt.Errorf("no workflow run found with name: %s", workflowName)
 }
 
-func (a *Asset) Download() ([]byte, error) {
-	resp, err := http.Get(a.BrowserDownloadURL)
+func (r *Repository) GetArtifacts(run *WorkflowRun) ([]Artifact, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/runs/%d/artifacts", r.Owner, r.Repo, run.ID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if r.AuthToken != "" {
+		req.Header.Set("Authorization", "Bearer "+r.AuthToken)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+
+	var artifactsResponse ArtifactsResponse
+	if err := json.NewDecoder(resp.Body).Decode(&artifactsResponse); err != nil {
+		return nil, err
+	}
+
+	return artifactsResponse.Artifacts, nil
+}
+
+func (a *Artifact) Download(repo *Repository) ([]byte, error) {
+	url := fmt.Sprintf("https://api.github.com/repos/%s/%s/actions/artifacts/%d/zip", repo.Owner, repo.Repo, a.ID)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	if repo.AuthToken != "" {
+		req.Header.Set("Authorization", "Bearer "+repo.AuthToken)
+	}
+
+	client := &http.Client{}
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}

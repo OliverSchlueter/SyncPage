@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"net/http"
+	"regexp"
 	"syncpage/github"
 	"syncpage/middleware"
 	"syncpage/site"
@@ -15,23 +16,18 @@ const (
 func main() {
 	mux := http.NewServeMux()
 
-	fnSite := site.Site{
-		Name: "FancyNpcs",
+	fpDocs := site.Site{
+		Name: "docs",
 		Repo: github.Repository{
-			Owner: "fancymcplugins",
-			Repo:  "fancynpcs",
+			Owner:     "fancymcplugins",
+			Repo:      "docs",
+			AuthToken: "",
 		},
+		WorkflowName: "Build documentation",
+		ArtifactName: "docs",
+		FileName:     regexp.MustCompile("\\.zip$"),
 	}
-	fnSite.Register(mux)
-
-	fhSite := site.Site{
-		Name: "FancyHolograms",
-		Repo: github.Repository{
-			Owner: "fancymcplugins",
-			Repo:  "fancyholograms",
-		},
-	}
-	fhSite.Register(mux)
+	fpDocs.Register(mux)
 
 	go func() {
 		err := http.ListenAndServe(":"+PORT, middleware.Middleware(mux))
